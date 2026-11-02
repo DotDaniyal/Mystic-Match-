@@ -1,0 +1,283 @@
+import { Level, GemType, DailyLoginReward, Mission, StreakBonus } from './types';
+
+const GEM_TYPES: GemType[] = ['ruby', 'sapphire', 'emerald', 'topaz', 'amethyst', 'prism'];
+
+const LEVEL_NAMES = [
+  'Awakening', 'Broken Bridge', 'Sunken Shrine', 'Mossy Gorge', 'Whispering Winds',
+  'Obsidian Caverns', 'Glacial Spires', 'Storm Ridge', 'Celestial Spire', 'Aether Dragon',
+  'Enchanted Glade', 'Echoing Abyss', 'Ruby Summit', 'Misty Swamps', 'Shattered Peaks',
+  'Lost Ruins', 'Ancient Grove', 'Twilight Dunes', 'Sapphire Oasis', 'Leviathan Depths',
+  'Solstice Plains', 'Eclipse Valley', 'Viper Canyon', 'Phantom Keep', 'Crystalline Caves',
+  'Chrono Keep', 'Nova Nebula', 'Cosmic Chasm', 'Sovereign Throne', 'Beholder Lair',
+  'Ashen Waste', 'Brimstone Crater', 'Phoenix Rise', 'Wild Canopy', 'Frost Giants',
+  'Hydra Bay', 'Gorgon Reef', 'Cyclops Citadel', 'Minotaur Maze', 'Chimera Crag',
+  'Valhalla Gates', 'Asgard Bridge', 'Ragnarok Peaks', 'El Dorado Pool', 'Avalon Woods',
+  'Camelot Castle', 'Shangri-La Pass', 'Atlantis Abyss', 'Pandora Box', 'Genesis Peak'
+];
+
+export const INITIAL_LEVELS: Level[] = [];
+
+for (let i = 1; i <= 50; i++) {
+  const isBoss = i % 10 === 0;
+  const name = LEVEL_NAMES[i - 1] || `Mystic Isle ${i}`;
+  const recommendedPower = 800 + (i - 1) * 150 + (isBoss ? 1000 : 0);
+  const gemType = GEM_TYPES[(i - 1) % GEM_TYPES.length];
+  
+  // Made levels easier to play and win
+  let objectiveTarget = 10 + Math.floor((i - 1) * 0.8);
+  if (isBoss) objectiveTarget = Math.floor(objectiveTarget * 1.1);
+
+  let loot = `Standard Crystal x${3 + (i % 3)}`;
+  if (isBoss) {
+    loot = `Boss Core Shard, ${(i / 10) * 1000} Gems`;
+  } else if (i % 5 === 0) {
+    loot = `Rare Elixir, ${i * 50} Gold`;
+  }
+
+  INITIAL_LEVELS.push({
+    id: i,
+    name,
+    stars: 0,
+    isLocked: i !== 1,
+    isBoss,
+    recommendedPower,
+    loot,
+    objectiveTarget,
+    objectiveType: gemType
+  });
+}
+
+export const DAILY_LOGIN_REWARDS: DailyLoginReward[] = [
+  { day: 1, rewardDescription: '300 Gold Coins', coins: 300 },
+  { day: 2, rewardDescription: '1 Hint Booster + 100 Coins', coins: 100, boosters: { hint: 1 } },
+  { day: 3, rewardDescription: '500 Gold Coins', coins: 500 },
+  { day: 4, rewardDescription: '1 Shuffle Booster + 150 Coins', coins: 150, boosters: { shuffle: 1 } },
+  { day: 5, rewardDescription: '750 Gold Coins', coins: 750 },
+  { day: 6, rewardDescription: 'Hammer + Undo Boosters', coins: 200, boosters: { hammer: 1, undo: 1 } },
+  { day: 7, rewardDescription: 'Grand Treasure: 1,000 Coins, 25 Diamonds & Rainbow Surge!', coins: 1000, diamonds: 25, boosters: { rainbow: 1, hammer: 1, shuffle: 1, hint: 1, undo: 1 } },
+];
+
+export const STREAK_BONUSES: Record<number, StreakBonus> = {
+  3: {
+    days: 3,
+    title: '3-Day Arcane Streak',
+    coins: 300,
+    diamonds: 10,
+    boosters: { hint: 1 },
+    badge: '🔥 3 Days',
+  },
+  5: {
+    days: 5,
+    title: '5-Day Celestial Streak',
+    coins: 600,
+    diamonds: 20,
+    boosters: { hammer: 1, shuffle: 1 },
+    badge: '⚡ 5 Days',
+  },
+  7: {
+    days: 7,
+    title: '7-Day Grand Master Streak',
+    coins: 1200,
+    diamonds: 50,
+    boosters: { rainbow: 1, hammer: 1, shuffle: 1, hint: 1, undo: 1 },
+    badge: '👑 7 Days',
+  },
+};
+
+export const getStreakBonus = (streakDays: number): StreakBonus | null => {
+  if (streakDays === 3) return STREAK_BONUSES[3];
+  if (streakDays === 5) return STREAK_BONUSES[5];
+  if (streakDays >= 7 && streakDays % 7 === 0) {
+    return {
+      ...STREAK_BONUSES[7],
+      days: streakDays,
+      title: `${streakDays}-Day Grand Master Streak`,
+    };
+  }
+  return null;
+};
+
+export const calculateDailyStreak = (lastClaimDate: string | null, prevStreak: number = 0): {
+  currentStreak: number;
+  isClaimedToday: boolean;
+  canExtendStreak: boolean;
+  nextStreakOnClaim: number;
+} => {
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (!lastClaimDate) {
+    return {
+      currentStreak: 0,
+      isClaimedToday: false,
+      canExtendStreak: true,
+      nextStreakOnClaim: 1,
+    };
+  }
+
+  if (lastClaimDate === todayStr) {
+    return {
+      currentStreak: Math.max(1, prevStreak),
+      isClaimedToday: true,
+      canExtendStreak: false,
+      nextStreakOnClaim: Math.max(1, prevStreak),
+    };
+  }
+
+  // Calculate day difference
+  const dToday = new Date(todayStr + 'T00:00:00Z').getTime();
+  const dLast = new Date(lastClaimDate + 'T00:00:00Z').getTime();
+  const diffDays = Math.round((dToday - dLast) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 1) {
+    // Intact streak! Claiming will advance the streak count
+    return {
+      currentStreak: Math.max(1, prevStreak),
+      isClaimedToday: false,
+      canExtendStreak: true,
+      nextStreakOnClaim: Math.max(1, prevStreak) + 1,
+    };
+  } else {
+    // Missed a day: streak resets on next claim
+    return {
+      currentStreak: 0,
+      isClaimedToday: false,
+      canExtendStreak: true,
+      nextStreakOnClaim: 1,
+    };
+  }
+};
+
+export const DEFAULT_MISSIONS: Mission[] = [
+  {
+    id: 'complete_3_levels',
+    title: 'Explorer Path',
+    description: 'Complete 3 puzzle levels',
+    target: 3,
+    current: 0,
+    completed: false,
+    claimed: false,
+    rewardCoins: 200,
+    rewardBooster: { type: 'hint', count: 1 },
+  },
+  {
+    id: 'pure_talent',
+    title: 'Pure Talent',
+    description: 'Complete a level without using any boosters',
+    target: 1,
+    current: 0,
+    completed: false,
+    claimed: false,
+    rewardCoins: 250,
+    rewardBooster: { type: 'undo', count: 1 },
+  },
+  {
+    id: 'earn_10_stars',
+    title: 'Star Collector',
+    description: 'Earn 10 stars across puzzle stages',
+    target: 10,
+    current: 0,
+    completed: false,
+    claimed: false,
+    rewardCoins: 300,
+    rewardBooster: { type: 'shuffle', count: 1 },
+  },
+  {
+    id: 'make_25_matches',
+    title: 'Combo Weaver',
+    description: 'Perform 25 gem matches',
+    target: 25,
+    current: 0,
+    completed: false,
+    claimed: false,
+    rewardCoins: 250,
+    rewardBooster: { type: 'hammer', count: 1 },
+  },
+  {
+    id: 'complete_5_levels',
+    title: 'Master Adventurer',
+    description: 'Complete 5 puzzle levels',
+    target: 5,
+    current: 0,
+    completed: false,
+    claimed: false,
+    rewardCoins: 400,
+    rewardBooster: { type: 'rainbow', count: 1 },
+  },
+];
+
+import { ShopItem } from './types';
+export type { ShopItem };
+
+export const BOOSTER_SHOP_ITEMS: ShopItem[] = [
+  {
+    id: 'shop_hint',
+    name: 'Mystic Hint',
+    type: 'single',
+    boosterType: 'hint',
+    amount: 1,
+    quantity: 1,
+    costCoins: 100,
+    coinCost: 100,
+    icon: '💡',
+    description: 'Highlights a guaranteed matching move when you need guidance.',
+  },
+  {
+    id: 'shop_shuffle',
+    name: 'Vortex Shuffle',
+    type: 'single',
+    boosterType: 'shuffle',
+    amount: 1,
+    quantity: 1,
+    costCoins: 150,
+    coinCost: 150,
+    icon: '🔄',
+    description: 'Reshuffles all tiles on the board into fresh match opportunities.',
+  },
+  {
+    id: 'shop_undo',
+    name: 'Chrono Undo',
+    type: 'single',
+    boosterType: 'undo',
+    amount: 1,
+    quantity: 1,
+    costCoins: 150,
+    coinCost: 150,
+    icon: '⏪',
+    description: 'Reverses your most recent move, restoring your moves and score.',
+  },
+  {
+    id: 'shop_hammer',
+    name: 'Titan Hammer',
+    type: 'single',
+    boosterType: 'hammer',
+    amount: 1,
+    quantity: 1,
+    costCoins: 200,
+    coinCost: 200,
+    icon: '🔨',
+    description: 'Smashes and collects any selected crystal immediately.',
+  },
+  {
+    id: 'shop_rainbow',
+    name: 'Magic Match (Rainbow)',
+    type: 'single',
+    boosterType: 'rainbow',
+    amount: 1,
+    quantity: 1,
+    costCoins: 250,
+    coinCost: 250,
+    icon: '🌈',
+    description: 'Transforms 4 board crystals into your exact objective gem type!',
+  },
+  {
+    id: 'shop_bundle',
+    name: 'Grand Mage Bundle',
+    type: 'bundle',
+    amount: 1,
+    quantity: 1,
+    costCoins: 750,
+    coinCost: 750,
+    icon: '✨',
+    isPopular: true,
+    description: 'Special value pack: 1 Hint, 1 Shuffle, 1 Undo, 1 Hammer, and 1 Rainbow Surge!',
+  },
+];
